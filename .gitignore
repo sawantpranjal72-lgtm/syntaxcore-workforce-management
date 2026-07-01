@@ -1,0 +1,64 @@
+# =========================
+# JAVA / SPRING BOOT
+# =========================
+target/
+*.jar
+*.war
+*.log
+logs/
+
+.mvn/
+mvnw
+mvnw.cmd
+
+# =========================
+# SPRING CONFIG (SECRETS)
+# =========================
+application-local.yml
+application-dev.yml
+application-prod.yml
+*.yml.backup
+
+# =========================
+# NODE / ANGULAR
+# =========================
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Angular env files
+src/environments/environment.ts
+src/environments/environment.prod.ts
+
+# =========================
+# IDE / OS
+# =========================
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# =========================
+# DATABASE / BACKUPS
+# =========================
+*.sql
+*.dump
+*.backup
+
+# =========================
+# KEYS / SECRETS
+# =========================
+*.pem
+*.key
+*.p12
+*.pfx
+
+# =========================
+# BUILD OUTPUT
+# =========================
+build/
+out/

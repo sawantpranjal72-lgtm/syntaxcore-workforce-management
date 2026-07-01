@@ -1,0 +1,175 @@
+import { Component, signal, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
+
+interface ChatTurn { role: 'user' | 'assistant'; content: string; loading?: boolean; }
+
+@Component({
+  selector: 'app-ai-assistant',
+  standalone: true,
+  imports: [CommonModule, FormsModule, MatIconModule, MatButtonModule, MatProgressSpinnerModule],
+  template: `
+<div class="flex flex-col h-full" style="height:calc(100vh - 56px)">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3 px-6 py-4 border-b flex-shrink-0"
+       style="background:var(--card-bg,#fff); border-color:var(--border-color,#e2e8f0)">
+    <div class="w-9 h-9 rounded-xl flex items-center justify-center"
+         style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">
+      <mat-icon class="text-white text-base">auto_awesome</mat-icon>
+    </div>
+    <div>
+      <h2 class="font-semibold text-slate-900 dark:text-white">SyntaxCore AI</h2>
+      <p class="text-xs text-slate-400">Powered by GPT-4 · Ask anything about your workspace</p>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div #chatContainer class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+    @if (!conversation().length) {
+      <div class="max-w-xl mx-auto mt-8">
+        <h3 class="text-xl font-semibold text-slate-900 dark:text-white text-center mb-6">
+          How can I help you today?
+        </h3>
+        <div class="grid grid-cols-2 gap-3">
+          @for (s of suggestions; track s) {
+            <button (click)="sendSuggestion(s)"
+                    class="text-left p-4 rounded-xl border text-sm text-slate-600 dark:text-slate-300
+                           hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-200 transition-colors"
+                    style="border-color:var(--border-color,#e2e8f0)">
+              {{s}}
+            </button>
+          }
+        </div>
+      </div>
+    }
+
+    @for (turn of conversation(); track $index) {
+      <div class="flex gap-3" [class]="turn.role === 'user' ? 'flex-row-reverse' : ''">
+        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+             [style]="turn.role === 'assistant'
+               ? 'background:linear-gradient(135deg,#6366f1,#8b5cf6)'
+               : 'background:#e2e8f0'">
+          <mat-icon class="text-sm" [class]="turn.role === 'assistant' ? 'text-white' : 'text-slate-600'">
+            {{turn.role === 'assistant' ? 'auto_awesome' : 'person'}}
+          </mat-icon>
+        </div>
+
+        <div class="max-w-2xl">
+          <div class="px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap"
+               [class]="turn.role === 'user'
+                 ? 'text-white rounded-tr-sm'
+                 : 'text-slate-800 dark:text-slate-200 rounded-tl-sm'"
+               [style]="turn.role === 'user'
+                 ? 'background:linear-gradient(135deg,#6366f1,#8b5cf6)'
+                 : 'background:var(--card-bg,#fff); border:1px solid var(--border-color,#e2e8f0)'">
+            @if (turn.loading) {
+              <div class="flex gap-1 py-1">
+                <div class="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:0ms"></div>
+                <div class="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:150ms"></div>
+                <div class="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:300ms"></div>
+              </div>
+            } @else {
+              {{turn.content}}
+            }
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Input -->
+  <div class="px-3 sm:px-6 py-3 sm:py-4 border-t flex-shrink-0"
+       style="background:var(--card-bg,#fff); border-color:var(--border-color,#e2e8f0)">
+    <div class="flex items-center gap-3 px-4 py-2.5 rounded-2xl border"
+         style="border-color:var(--border-color,#e2e8f0); background:var(--page-bg,#f8fafc)">
+      <input [(ngModel)]="prompt" (keyup.enter)="send()"
+             placeholder="Ask about tasks, team performance, overdue items..."
+             class="flex-1 bg-transparent text-sm outline-none text-slate-700 dark:text-slate-300 placeholder-slate-400">
+      <button mat-icon-button (click)="send()" [disabled]="!prompt.trim() || thinking()"
+              class="text-indigo-600">
+        @if (thinking()) { <mat-spinner diameter="18"></mat-spinner> }
+        @else { <mat-icon>send</mat-icon> }
+      </button>
+    </div>
+    <p class="text-xs text-slate-400 mt-2 text-center">
+      AI responses are generated by OpenAI and may not always be accurate.
+    </p>
+  </div>
+</div>
+  `,
+  styles: [`:host{display:block;height:100%}`]
+})
+export class AiAssistantComponent implements AfterViewChecked {
+  @ViewChild('chatContainer') private chatEl!: ElementRef;
+
+  conversation = signal<ChatTurn[]>([]);
+  prompt   = '';
+  thinking = signal(false);
+  private shouldScroll = false;
+
+  suggestions = [
+    'Show me all overdue tasks',
+    'Which team members have the most pending tasks?',
+    'Generate a sprint summary for this week',
+    'Who has been absent this week?',
+    'What are the top priority tasks right now?',
+    'Suggest how to improve team productivity'
+  ];
+
+  constructor(private http: HttpClient) {}
+
+  ngAfterViewChecked(): void {
+    if (this.shouldScroll) { this.scrollToBottom(); this.shouldScroll = false; }
+  }
+
+  sendSuggestion(s: string): void { this.prompt = s; this.send(); }
+
+  send(): void {
+    if (!this.prompt.trim() || this.thinking()) return;
+    const userPrompt = this.prompt.trim();
+    this.prompt = '';
+
+    this.conversation.update(c => [...c, { role: 'user', content: userPrompt }]);
+    const loadingTurn: ChatTurn = { role: 'assistant', content: '', loading: true };
+    this.conversation.update(c => [...c, loadingTurn]);
+    this.shouldScroll = true;
+    this.thinking.set(true);
+
+    this.http.post<{ reply: string }>(`${environment.apiUrl}/ai/chat`, {
+      message: userPrompt,
+      history: this.conversation().slice(0, -1).map(t => ({ role: t.role, content: t.content }))
+    }).subscribe({
+      next: r => {
+        this.conversation.update(c => {
+          const updated = [...c];
+          updated[updated.length - 1] = { role: 'assistant', content: r.reply, loading: false };
+          return updated;
+        });
+        this.thinking.set(false);
+        this.shouldScroll = true;
+      },
+      error: () => {
+        this.conversation.update(c => {
+          const updated = [...c];
+          updated[updated.length - 1] = {
+            role: 'assistant',
+            content: 'Sorry, I encountered an error. Please check your OpenAI API key configuration.',
+            loading: false
+          };
+          return updated;
+        });
+        this.thinking.set(false);
+      }
+    });
+  }
+
+  scrollToBottom(): void {
+    try { this.chatEl.nativeElement.scrollTop = this.chatEl.nativeElement.scrollHeight; } catch {}
+  }
+}

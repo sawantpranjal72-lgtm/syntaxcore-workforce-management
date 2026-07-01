@@ -1,0 +1,18 @@
+package com.syntaxcore.workforce.enums;
+
+public enum NotificationType {
+    TASK_ASSIGNED,
+    TASK_UPDATED,
+    TASK_COMPLETED,
+    TASK_APPROVED,
+    TASK_REJECTED,
+    TASK_DEADLINE_REMINDER,
+    COMMENT_ADDED,
+    MENTION,
+    PROJECT_UPDATE,
+    ATTENDANCE_REMINDER,
+    LEAVE_APPROVED,
+    LEAVE_REJECTED,
+    SYSTEM_ALERT,
+    MESSAGE_RECEIVED
+}
